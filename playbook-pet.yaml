@@ -1,0 +1,14 @@
+---
+- hosts: all
+
+  user: root
+
+  tasks:
+  
+  - name: upgrade all packages
+    yum:
+      name: '*'
+      state: latest
+
+  - name: "Starting Apache server"
+    command: nohup /opt/apache-tomcat-8.5.15/bin/startup.sh

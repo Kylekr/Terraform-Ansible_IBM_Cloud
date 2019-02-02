@@ -1,0 +1,114 @@
+---
+- hosts: all
+
+  user: root
+
+  tasks:
+
+  - name: Deploy Terraform
+    gather_facts: False
+    become: true
+    roles:
+      - { role: terraform }
+
+  - name: Yum Install Packages
+    yum: name={{item}} state=latest
+    with_items:
+      - wget
+
+  - name: Terraform Install
+    unarchive:
+      src: https://releases.hashicorp.com/terraform/0.9.1/terraform_0.9.1_linux_amd64.zip
+      dest: /usr/bin
+      remote_src: True
+
+
+  - name: Install packages to allow apt to use a repository over HTTPS
+    apt: name= {{item}} state=present update_cache=yes
+    with_items:
+      - ca-certificates
+      - curl
+
+  - name: Add Docker’s official GPG key
+    apt_key:
+      url: https://download.docker.com/linux/ubuntu/gpg
+      id: 0EBFCD88
+
+  - name: Set up the stable repository
+    apt_repository:
+      repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu xenial stable
+
+  - name: Install Docker CE
+    apt:
+      name: docker-ce
+      update_cache: yes
+
+  - name: Add ibmcloud user
+    user:
+      name: ibmcloud
+      shell: /bin/bash
+      groups: docker
+
+  - name: Give sudo authorization to user
+    lineinfile:
+      dest: /etc/sudoers.d/90-cloud-init-users
+      regexp: '^ibmcloud '
+      line: 'ibmcloud ALL=(ALL) NOPASSWD:ALL'
+      validate: '/usr/sbin/visudo -cf %s'
+
+  - name: Add Golang ppa
+    apt_repository:
+      repo: 'ppa:gophers/archive'
+
+  - name: Install Golang 1.9
+    apt:
+      name: golang-1.9-go
+      update_cache: yes
+
+  - name: Set GOROOT
+    copy:
+      src: goroot.sh
+      dest: /etc/profile.d/gopath.sh
+      owner: root
+      group: root
+      mode: 0644
+
+  - name: Set GOPATH
+    lineinfile:
+      dest: /home/ibmcloud/.bashrc
+      regexp: '^export GOPATH'
+      line: 'export GOPATH=$HOME/go; export PATH=$PATH:$GOPATH/bin'
+
+  - name: Install packages
+    apt: name= {{item}} state=present update_cache=yes
+    with_items:
+      - fail2ban
+      - python
+      - python3-pip
+      - unzip
+
+  - name: Install Kubectl
+    get_url:
+      url: https://storage.googleapis.com/kubernetes-release/release/v1.10.0/bin/linux/amd64/kubectl
+      dest: /usr/local/bin/kubectl
+      mode: a+x
+
+  - name: Download IBM Cloud CLI
+    get_url:
+      url: https://clis.ng.bluemix.net/install/linux
+      dest: /tmp/
+      mode: a+x
+#    shell: curl -fsSL https://clis.ng.bluemix.net/install/linux | sh
+
+  - name: Install IBM Cloud CLI
+    shell: /tmp/linux
+
+  - name: Install IBM Cloud dev CLI
+    shell: curl -sL https://ibm.biz/idt-installer | bash
+
+  - name: Install ibm cloud container-service
+    shell: bx plugin install -y container-service -r Bluemix
+
+  - name: Install ibm cloud container-registry
+    shell: bx plugin install -y container-registry -r Bluemix
+
